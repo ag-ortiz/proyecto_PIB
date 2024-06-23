@@ -15,9 +15,13 @@ from skimage.segmentation import clear_border
 from skimage.measure import label, regionprops, find_contours
 from skimage.draw import polygon
 from PyQt5.QtGui import QImage, QPixmap
-from MachineLearning import train_models, evaluate_user_image, extract_features
+from sklearn.preprocessing import StandardScaler
+from MachineLearning import extract_features
+from Evaluar_imagen import preprocess_image, predict_probabilities,cargar_modelos
 
 class Ui_tcPIB(object):
+    def __init__(self):
+        self.scaler, self.svm_model, self.rf_model, self.knn_model = cargar_modelos()
     #Solo diseño de interfaz
     def setupUi(self, tcPIB):
         tcPIB.setObjectName("tcPIB")
@@ -153,9 +157,9 @@ class Ui_tcPIB(object):
         self.actionAbrir.triggered.connect(self.seleccionar_archivo)
         self.actionPNG.triggered.connect(self.savePNG)
         self.action_txt.triggered.connect(self.saveTXT)
-
+        self.segmented_image = None
     # Entrenar los modelos y obtener el scaler (revisar)
-        self.models, self.scaler = train_models()
+    # self.models, self.scaler = train_models()
 
     #Limpiar valores
     def resetear_valores(self):
@@ -164,6 +168,7 @@ class Ui_tcPIB(object):
         self.imSegmentada.clear()
         self.imNodulo.clear()
         self.textoDiagnostico.clear()
+        self.segmented_image.clear()
 
     #Texto de botones y titulos
     def retranslateUi(self, tcPIB):
@@ -179,7 +184,7 @@ class Ui_tcPIB(object):
         self.actionPNG.setText(_translate("tcPIB", "PNG"))
         self.action_txt.setText(_translate("tcPIB", ".txt"))
         self.actionAbrir.setText(_translate("tcPIB", "Abrir"))
-
+    
     #Seleccionar y cargar imagen
     def seleccionar_archivo(self):
         options = QtWidgets.QFileDialog.Options()
@@ -190,79 +195,143 @@ class Ui_tcPIB(object):
             pixmap = QtGui.QPixmap(filePath)
             self.imOriginal.setPixmap(pixmap.scaled(self.imOriginal.size(), QtCore.Qt.KeepAspectRatio)) #muestra imagen original
     
+    def ejecutar_diagnostico(self, nodulo_segmentado):
+        try:
+            if self.segmented_image is None:
+                raise ValueError("No se ha procesado ninguna imagen aún")
+            
+
+            features_scaled = preprocess_image(nodulo_segmentado, self.scaler)
+
+            svm_prob, rf_prob, knn_prob = predict_probabilities(features_scaled, self.svm_model, self.rf_model, self.knn_model)
+            
+
+            print(f"SVM Probabilities: {svm_prob}")
+            print(f"RF Probabilities: {rf_prob}")
+            print(f"KNN Probabilities: {knn_prob}")
+
+            if len(svm_prob) < 2:
+                raise ValueError("SVM probabilities do not have enough elements")
+            if len(rf_prob) < 2:
+                raise ValueError("RF probabilities do not have enough elements")
+            if len(knn_prob) < 2:
+                raise ValueError("KNN probabilities do not have enough elements")
+
+            benign_prob_svm = svm_prob[0]
+            malignant_prob_svm = svm_prob[1]
+            benign_prob_rf = rf_prob[0]
+            malignant_prob_rf = rf_prob[1]
+            benign_prob_knn = knn_prob[0]
+            malignant_prob_knn = knn_prob[1]
+
+            html_text = f"""
+            <html>
+            <head/>
+            <body>
+            <p><span style="font-family:'Arial'; font-size:12pt;">Probabilidad de que el nódulo sea benigno (SVM): {benign_prob_svm:.2f}%</span></p>
+            <p><span style="font-family:'Arial'; font-size:12pt;">Probabilidad de que el nódulo sea maligno (SVM): {malignant_prob_svm:.2f}%</span></p>
+            <p><span style="font-family:'Arial'; font-size:12pt;">Probabilidad de que el nódulo sea benigno (RF): {benign_prob_rf:.2f}%</span></p>
+            <p><span style="font-family:'Arial'; font-size:12pt;">Probabilidad de que el nódulo sea maligno (RF): {malignant_prob_rf:.2f}%</span></p>
+            <p><span style="font-family:'Arial'; font-size:12pt;">Probabilidad de que el nódulo sea benigno (KNN): {benign_prob_knn:.2f}%</span></p>
+            <p><span style="font-family:'Arial'; font-size:12pt;">Probabilidad de que el nódulo sea maligno (KNN): {malignant_prob_knn:.2f}%</span></p>
+            </body>
+            </html>
+            """
+
+            self.textoDiagnostico.setHtml(html_text)
+
+
+        except Exception as e:
+            self.textoDiagnostico.setPlainText(f"Error al ejecutar el diagnóstico: {str(e)}")
 
     # Función para procesar cada imagen segmentada y su máscara correspondiente
-    def convolucion_nodulo(self, masks_path):
+    def convolucion_nodulo(self, image, masks_path):
         try:
-            # Obtener la imagen segmentada de QLabel y convertirla a numpy array
-            pixmap = self.imSegmentada.pixmap()
-            qimage = pixmap.toImage()
-            ptr = qimage.bits()
-            ptr.setsize(qimage.byteCount())
-            imagen_np = np.array(ptr).reshape(qimage.height(), qimage.width(), 4)  # QImage.Format_RGBA8888 tiene 4 canales (RGBA)
-        
-            # Convertir RGBA a RGB si es necesario
-            imagen_cv2 = cv2.cvtColor(imagen_np, cv2.COLOR_RGBA2RGB)
-
-            # Obtener la lista de archivos de máscaras
-            masks_files = sorted(glob.glob(os.path.join(masks_path, "*.png")))  # Asumiendo que las máscaras son archivos PNG
+            if image is None:
+                raise ValueError("Imagen no proporcionadas")
+            
+            masks_files = sorted(glob.glob(os.path.join(masks_path, "*.png")))
 
             for mask_file in masks_files:
                 # Cargar la máscara correspondiente
                 mask = cv2.imread(mask_file, cv2.IMREAD_GRAYSCALE)
 
                 # Asegurarse de que la imagen y la máscara tengan las mismas dimensiones
-                if imagen_cv2.shape[:2] != mask.shape[:2]:
+                if image.shape[:2] != mask.shape[:2]:
                     # Si las dimensiones no coinciden, redimensionar la máscara a las dimensiones de la imagen segmentada
-                    mask = cv2.resize(mask, (imagen_cv2.shape[1], imagen_cv2.shape[0]), interpolation=cv2.INTER_AREA)
+                    mask = cv2.resize(mask, (image.shape[1], image.shape[0]), interpolation=cv2.INTER_AREA)
 
-                # Imprimir dimensiones para verificar
-                print(f"Dimensiones de imagen: {imagen_cv2.shape}, Dimensiones de máscara: {mask.shape}")
+            # Aplicar la máscara a la imagen para obtener el nódulo segmentado
+            nodulo_segmentado = cv2.bitwise_and(image, image, mask=mask)
 
-                # Multiplicar la imagen segmentada por la máscara
-                segmented_nodule = cv2.bitwise_and(imagen_cv2, imagen_cv2, mask=mask)
+            # Mostrar la imagen del nódulo segmentado
+            nodulo_qimage = QImage(nodulo_segmentado.data, nodulo_segmentado.shape[1], nodulo_segmentado.shape[0], nodulo_segmentado.strides[0], QImage.Format_Grayscale8)
+            self.imNodulo.setPixmap(QPixmap.fromImage(nodulo_qimage).scaled(self.imNodulo.size(), QtCore.Qt.KeepAspectRatio))
 
-                # Convertir la imagen resultante a QPixmap
-                height, width, channels = segmented_nodule.shape
-                bytesPerLine = channels * width
-                qImage_resultante = QImage(segmented_nodule.data, width, height, bytesPerLine, QImage.Format_RGB888)
-                pixmap_resultante = QPixmap(qImage_resultante)
+            return nodulo_segmentado
+        except Exception as e:
+            self.textoDiagnostico.setPlainText(f"Error en la convolución del nódulo: {str(e)}")
+            return None
 
-                # Mostrar la imagen en QLabel imNodulo
-                self.imNodulo.setPixmap(pixmap_resultante.scaled(self.imNodulo.size(), QtCore.Qt.KeepAspectRatio))
+
+    #Ejecucion de Algoritmo de Segmentación
+
+    def ejecutar_algoritmo(self):
+        try:
+            file_path = self.muestraArchivo.text()
+            if not file_path:
+                raise ValueError("No se ha seleccionado ninguna imagen")
+
+            # Leer la imagen
+            image = cv2.imread(file_path, cv2.IMREAD_GRAYSCALE)
+            if image is None:
+                raise ValueError("Error al leer la imagen")
+
+            # Segmentar la imagen
+            self.segmented_image = self.segmentar_imagen(image)
+            
+            # Mostrar la imagen segmentada
+            fig, ax = plt.subplots()
+            ax.imshow(self.segmented_image, cmap='gray')
+            ax.set_axis_off()
+            plt.tight_layout()
+            plt.savefig('output_image.png', bbox_inches='tight', pad_inches=0)
+            plt.close(fig)
+            pixmap_segmented = QtGui.QPixmap('output_image.png')
+            self.imSegmentada.setPixmap(pixmap_segmented.scaled(self.imSegmentada.size(), QtCore.Qt.KeepAspectRatio))
+
+            # Crear una máscara binaria para el nódulo segmentado
+            masks_path = 'C:\\Users\\Galle\\Documents\\ITBA\\PIB\\archivos_oficiales\\xrays segmentados\\todo\\mascaras'
+
+            # Procesar el nódulo segmentado
+            nodulo_segmentado = self.convolucion_nodulo(self.segmented_image,masks_path)
+
+            # Realizar diagnóstico si el nódulo segmentado se obtuvo correctamente
+            if nodulo_segmentado is not None:
+                self.ejecutar_diagnostico(nodulo_segmentado)
 
         except Exception as e:
             self.textoDiagnostico.setPlainText(f"Error al ejecutar el algoritmo: {str(e)}")
 
-
-    #Ejecucion de Algoritmo de Segmentación
-    def ejecutar_algoritmo(self):
-        filePath = self.muestraArchivo.text() #toma la imagen del Qlabel para usarla en el algoritmo
-        if not filePath:
-            self.textoDiagnostico.setPlainText("Por favor, seleccione un archivo antes de ejecutar el algoritmo.")
-            return
+    def segmentar_imagen(self, image):
         try:
-            original_image = Image.open(filePath)
-            image = cv2.cvtColor(np.array(original_image), cv2.COLOR_RGB2GRAY)
-            # Aplicar CLAHE
+            # Denoising
             clahe = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(8, 8))
             clahe_img = clahe.apply(image)
-            # Aplicar TV denoising
-            tv_denoised_img = denoise_tv_chambolle(clahe_img, weight=2)
-            # Calcular el umbral de Otsu
-            otsu_threshold = threshold_otsu(tv_denoised_img)
-            # Binarizar la imagen usando el umbral de Otsu
-            binary_img = tv_denoised_img > otsu_threshold
-            # Definir el tamaño del elemento estructurante para la erosión
-            radius = 2
-            selem = disk(radius)
-            # Aplicar la operación de erosión a la imagen binarizada
-            eroded_img = binary_erosion(binary_img, selem)
-            # Restar las imágenes binarias
-            subtracted_img = np.logical_xor(binary_img, eroded_img)
-            # Eliminar las regiones conectadas al borde de la imagen
+            denoised_image = denoise_tv_chambolle(clahe_img, weight=2)
+            
+            # Thresholding
+            thresh = threshold_otsu(denoised_image)
+            binary_image = denoised_image > thresh
+            
+            # Erosion
+            eroded_image = binary_erosion(binary_image, disk(2))
+
+            subtracted_img= np.logical_xor(binary_image, eroded_image)
+            
+            # Clear border
             cleaned_subtracted_img = clear_border(subtracted_img)
-            # Etiquetar las regiones en la imagen limpiada
+
             labeled_img, num_labels = label(cleaned_subtracted_img, connectivity=1, return_num=True)
             # Mantener solo los bordes de los pulmones
             lung_borders = np.zeros_like(subtracted_img)
@@ -321,61 +390,31 @@ class Ui_tcPIB(object):
                 mask = np.flipud(mask)
                 mask = np.rot90(mask, 2)
                 convex_hull_values_rotated_img[mask.astype(bool)] = clahe_img[mask.astype(bool)]
-            fig, ax = plt.subplots()
-            ax.imshow(convex_hull_values_rotated_img, cmap='gray')
-            ax.set_axis_off()
-            plt.tight_layout()
-            plt.savefig('output_image.png', bbox_inches='tight', pad_inches=0)
-            plt.close(fig)
-            pixmap_segmented = QtGui.QPixmap('output_image.png')
-            self.imSegmentada.setPixmap(pixmap_segmented.scaled(self.imSegmentada.size(), QtCore.Qt.KeepAspectRatio))
-            # Llamar a la función convolucion_nodulo con el argumento masks_path
-            masks_path = 'C:\\Users\\Beatriz\\Desktop\\UPIBI\\ITBA_PIB\\interfaz\\proyecto_PIB\\xrays segmentados\\todo\\mascaras'
-            self.convolucion_nodulo(masks_path)
-            # Mostrar la imagen del nódulo segmentado (asumiendo que se guarda en 'nodule_image.png') <<Cambiar
-            #plt.imshow(largest_lung_borders, cmap='gray')
-            #plt.axis('off')
-            #plt.tight_layout()
-            #plt.savefig('nodule_image.png', bbox_inches='tight', pad_inches=0)
-            #plt.close()
-            #pixmap_nodule = QtGui.QPixmap('nodule_image.png')
-            #self.imNodulo.setPixmap(pixmap_nodule.scaled(self.imNodulo.size(), QtCore.Qt.KeepAspectRatio))
-            #self.textoDiagnostico.setPlainText("Algoritmo ejecutado correctamente.")
+            return convex_hull_values_rotated_img.astype(np.uint8)
         except Exception as e:
-            self.textoDiagnostico.setPlainText(f"Error al ejecutar el algoritmo: {str(e)}")
+            self.textoDiagnostico.setPlainText(f"Error al segmentar la imagen: {str(e)}")
 
-    #Ejecución del ML (modificar)        
-    def ejecutar_diagnostico(self):
-        filePath = self.muestraArchivo.text()
-        if not filePath:
-            self.textoDiagnostico.setPlainText("Por favor, seleccione un archivo antes de ejecutar el diagnóstico.")
-            return
-        try:
-            im_segmentada, im_nodulo, predictions = evaluate_user_image(filePath, self.models, extract_features, self.scaler)
-            if im_segmentada is not None and im_nodulo is not None:
-                segmentada_qimage = QImage(im_segmentada.data, im_segmentada.shape[1], im_segmentada.shape[0], QImage.Format_Grayscale8)
-                nodulo_qimage = QImage(im_nodulo.data, im_nodulo.shape[1], im_nodulo.shape[0], QImage.Format_Grayscale8)
-                
-                self.imSegmentada.setPixmap(QPixmap.fromImage(segmentada_qimage).scaled(self.imSegmentada.size(), QtCore.Qt.KeepAspectRatio))
-                self.imNodulo.setPixmap(QPixmap.fromImage(nodulo_qimage).scaled(self.imNodulo.size(), QtCore.Qt.KeepAspectRatio))
-            resultado = "Resultados del diagnóstico:\n\n"
-            for model, probs in predictions.items():
-                resultado += f"Modelo: {model}\n"
-                resultado += f"Probabilidad de ser benigno: {probs['Probabilidad de ser benigno']:.2f}\n"
-                resultado += f"Probabilidad de ser maligno: {probs['Probabilidad de ser maligno']:.2f}\n\n"
-            self.textoDiagnostico.setPlainText(resultado)
-        except Exception as e:
-            self.textoDiagnostico.setPlainText(f"Error al ejecutar el diagnóstico: {str(e)}")
+
+    # Guardar como PNG
     def savePNG(self):
-        filePath, _ = QtWidgets.QFileDialog.getSaveFileName(None, "Guardar imagen", "", "PNG Files (*.png)")
-        if filePath:
-            exporter = ImageExporter(self.imSegmentada.pixmap())
-            exporter.export(filePath)
+        try:
+            exporter = ImageExporter(self.imNodulo)
+            exporter.parameters()['width'] = 512  # width to export to
+            exporter.export('nodulo_segmentado.png')
+            self.textoDiagnostico.setPlainText("Imagen guardada como PNG")
+        except Exception as e:
+            self.textoDiagnostico.setPlainText(f"Error al guardar la imagen como PNG: {str(e)}")
+
+    # Guardar como TXT
     def saveTXT(self):
-        filePath, _ = QtWidgets.QFileDialog.getSaveFileName(None, "Guardar texto", "", "Text Files (*.txt)")
-        if filePath:
-            with open(filePath, 'w') as file:
-                file.write(self.textoDiagnostico.toPlainText())
+        try:
+            # Aquí puedes añadir el código para guardar los resultados como un archivo de texto
+            # Por ejemplo, guardando las probabilidades del diagnóstico en un archivo de texto
+            with open('diagnostico.txt', 'w') as f:
+                f.write(self.textoDiagnostico.toPlainText())
+            self.textoDiagnostico.setPlainText("Resultados guardados como .txt")
+        except Exception as e:
+            self.textoDiagnostico.setPlainText(f"Error al guardar los resultados como .txt: {str(e)}")
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
