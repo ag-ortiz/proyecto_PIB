@@ -191,32 +191,33 @@ class Ui_tcPIB(object):
             self.imOriginal.setPixmap(pixmap.scaled(self.imOriginal.size(), QtCore.Qt.KeepAspectRatio)) #muestra imagen original
     
 
-    # Función adaptada para procesar cada imagen segmentada y su máscara correspondiente
+    # Función para procesar cada imagen segmentada y su máscara correspondiente
     def convolucion_nodulo(self, masks_path):
         try:
             # Obtener la imagen segmentada de QLabel y convertirla a numpy array
             pixmap = self.imSegmentada.pixmap()
-        
-            # Convertir QPixmap a QImage
             qimage = pixmap.toImage()
-        
-            # Convertir QImage a numpy array
             ptr = qimage.bits()
             ptr.setsize(qimage.byteCount())
-            imagen_np = np.array(ptr).reshape(qimage.height(), qimage.width(), 4)  # QImage.Format_RGB32 tiene 4 canales (RGBA)
-
-            # Convertir RGBA a RGB
+            imagen_np = np.array(ptr).reshape(qimage.height(), qimage.width(), 4)  # QImage.Format_RGBA8888 tiene 4 canales (RGBA)
+        
+            # Convertir RGBA a RGB si es necesario
             imagen_cv2 = cv2.cvtColor(imagen_np, cv2.COLOR_RGBA2RGB)
 
             # Obtener la lista de archivos de máscaras
             masks_files = sorted(glob.glob(os.path.join(masks_path, "*.png")))  # Asumiendo que las máscaras son archivos PNG
 
             for mask_file in masks_files:
-            # Cargar la máscara correspondiente
+                # Cargar la máscara correspondiente
                 mask = cv2.imread(mask_file, cv2.IMREAD_GRAYSCALE)
 
                 # Asegurarse de que la imagen y la máscara tengan las mismas dimensiones
-                assert imagen_cv2.shape[:2] == mask.shape[:2], f"La imagen y la máscara tienen dimensiones diferentes."
+                if imagen_cv2.shape[:2] != mask.shape[:2]:
+                    # Si las dimensiones no coinciden, redimensionar la máscara a las dimensiones de la imagen segmentada
+                    mask = cv2.resize(mask, (imagen_cv2.shape[1], imagen_cv2.shape[0]), interpolation=cv2.INTER_AREA)
+
+                # Imprimir dimensiones para verificar
+                print(f"Dimensiones de imagen: {imagen_cv2.shape}, Dimensiones de máscara: {mask.shape}")
 
                 # Multiplicar la imagen segmentada por la máscara
                 segmented_nodule = cv2.bitwise_and(imagen_cv2, imagen_cv2, mask=mask)
@@ -232,8 +233,6 @@ class Ui_tcPIB(object):
 
         except Exception as e:
             self.textoDiagnostico.setPlainText(f"Error al ejecutar el algoritmo: {str(e)}")
-
-
 
 
     #Ejecucion de Algoritmo de Segmentación
@@ -377,6 +376,7 @@ class Ui_tcPIB(object):
         if filePath:
             with open(filePath, 'w') as file:
                 file.write(self.textoDiagnostico.toPlainText())
+
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
     tcPIB = QtWidgets.QMainWindow()
