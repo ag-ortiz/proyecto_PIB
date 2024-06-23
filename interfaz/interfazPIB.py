@@ -1,4 +1,3 @@
-
 from PyQt5 import QtCore, QtGui, QtWidgets
 import numpy as np
 import pyqtgraph as pg
@@ -6,6 +5,8 @@ from pyqtgraph.exporters import ImageExporter
 from PIL import Image
 import sys
 import cv2
+import os
+import glob
 import matplotlib.pyplot as plt
 from skimage.restoration import denoise_tv_chambolle
 from skimage.filters import threshold_otsu
@@ -15,7 +16,9 @@ from skimage.measure import label, regionprops, find_contours
 from skimage.draw import polygon
 from PyQt5.QtGui import QImage, QPixmap
 from MachineLearning import train_models, evaluate_user_image, extract_features
+
 class Ui_tcPIB(object):
+    #Solo diseño de interfaz
     def setupUi(self, tcPIB):
         tcPIB.setObjectName("tcPIB")
         tcPIB.resize(1600, 1200)  # Incrementar el tamaño de la ventana
@@ -97,12 +100,13 @@ class Ui_tcPIB(object):
         self.imOriginal.setStyleSheet("background-color:rgb(149, 204, 255)")
         self.imOriginal.setText("")
         self.imOriginal.setObjectName("imOriginal")
+        # Nuevo QLabel para mostrar otra imagen con espacio (imagen segmentada)
         self.imSegmentada = QtWidgets.QLabel(self.centralwidget)
         self.imSegmentada.setGeometry(QtCore.QRect(551, 312, 517, 517))
         self.imSegmentada.setStyleSheet("background-color:rgb(149, 204, 255)")
         self.imSegmentada.setText("")
         self.imSegmentada.setObjectName("imSegmentada")
-        # Nuevo QLabel para mostrar otra imagen con espacio
+        # Nuevo QLabel para mostrar otra imagen con espacio (imagen nodulo segmentado)
         self.imNodulo = QtWidgets.QLabel(self.centralwidget)
         self.imNodulo.setGeometry(QtCore.QRect(1078, 312, 517, 517))
         self.imNodulo.setStyleSheet("background-color:rgb(149, 204, 255)")
@@ -141,21 +145,27 @@ class Ui_tcPIB(object):
         self.resetButton.clicked.connect(self.resetear_valores)
         self.retranslateUi(tcPIB)
         QtCore.QMetaObject.connectSlotsByName(tcPIB)
-        # Asignación de funciones a los botones y acciones
+
+    # Asignación de funciones a los botones y acciones
         self.seleccionArchivo.clicked.connect(self.seleccionar_archivo)
         self.ejecucionAlgortimo.clicked.connect(self.ejecutar_algoritmo)
-        self.ejecucionDiagnostico.clicked.connect(self.ejecutar_diagnostico)
+        self.ejecucionDiagnostico.clicked.connect(self.ejecutar_diagnostico) #este botón ejecuta el ML para el diagnóstico
         self.actionAbrir.triggered.connect(self.seleccionar_archivo)
         self.actionPNG.triggered.connect(self.savePNG)
         self.action_txt.triggered.connect(self.saveTXT)
-        # Entrenar los modelos y obtener el scaler
+
+    # Entrenar los modelos y obtener el scaler (revisar)
         self.models, self.scaler = train_models()
+
+    #Limpiar valores
     def resetear_valores(self):
         self.muestraArchivo.clear()
         self.imOriginal.clear()
         self.imSegmentada.clear()
         self.imNodulo.clear()
         self.textoDiagnostico.clear()
+
+    #Texto de botones y titulos
     def retranslateUi(self, tcPIB):
         _translate = QtCore.QCoreApplication.translate
         tcPIB.setWindowTitle(_translate("tcPIB", "Tomografía Computada de Perfusión para Imágenes Biomédicas"))
@@ -169,6 +179,8 @@ class Ui_tcPIB(object):
         self.actionPNG.setText(_translate("tcPIB", "PNG"))
         self.action_txt.setText(_translate("tcPIB", ".txt"))
         self.actionAbrir.setText(_translate("tcPIB", "Abrir"))
+
+    #Seleccionar y cargar imagen
     def seleccionar_archivo(self):
         options = QtWidgets.QFileDialog.Options()
         options |= QtWidgets.QFileDialog.ReadOnly
@@ -176,9 +188,57 @@ class Ui_tcPIB(object):
         if filePath:
             self.muestraArchivo.setText(filePath)
             pixmap = QtGui.QPixmap(filePath)
-            self.imOriginal.setPixmap(pixmap.scaled(self.imOriginal.size(), QtCore.Qt.KeepAspectRatio))
+            self.imOriginal.setPixmap(pixmap.scaled(self.imOriginal.size(), QtCore.Qt.KeepAspectRatio)) #muestra imagen original
+    
+
+    # Función adaptada para procesar cada imagen segmentada y su máscara correspondiente
+    def convolucion_nodulo(self, masks_path):
+        try:
+            # Obtener la imagen segmentada de QLabel y convertirla a numpy array
+            pixmap = self.imSegmentada.pixmap()
+        
+            # Convertir QPixmap a QImage
+            qimage = pixmap.toImage()
+        
+            # Convertir QImage a numpy array
+            ptr = qimage.bits()
+            ptr.setsize(qimage.byteCount())
+            imagen_np = np.array(ptr).reshape(qimage.height(), qimage.width(), 4)  # QImage.Format_RGB32 tiene 4 canales (RGBA)
+
+            # Convertir RGBA a RGB
+            imagen_cv2 = cv2.cvtColor(imagen_np, cv2.COLOR_RGBA2RGB)
+
+            # Obtener la lista de archivos de máscaras
+            masks_files = sorted(glob.glob(os.path.join(masks_path, "*.png")))  # Asumiendo que las máscaras son archivos PNG
+
+            for mask_file in masks_files:
+            # Cargar la máscara correspondiente
+                mask = cv2.imread(mask_file, cv2.IMREAD_GRAYSCALE)
+
+                # Asegurarse de que la imagen y la máscara tengan las mismas dimensiones
+                assert imagen_cv2.shape[:2] == mask.shape[:2], f"La imagen y la máscara tienen dimensiones diferentes."
+
+                # Multiplicar la imagen segmentada por la máscara
+                segmented_nodule = cv2.bitwise_and(imagen_cv2, imagen_cv2, mask=mask)
+
+                # Convertir la imagen resultante a QPixmap
+                height, width, channels = segmented_nodule.shape
+                bytesPerLine = channels * width
+                qImage_resultante = QImage(segmented_nodule.data, width, height, bytesPerLine, QImage.Format_RGB888)
+                pixmap_resultante = QPixmap(qImage_resultante)
+
+                # Mostrar la imagen en QLabel imNodulo
+                self.imNodulo.setPixmap(pixmap_resultante.scaled(self.imNodulo.size(), QtCore.Qt.KeepAspectRatio))
+
+        except Exception as e:
+            self.textoDiagnostico.setPlainText(f"Error al ejecutar el algoritmo: {str(e)}")
+
+
+
+
+    #Ejecucion de Algoritmo de Segmentación
     def ejecutar_algoritmo(self):
-        filePath = self.muestraArchivo.text()
+        filePath = self.muestraArchivo.text() #toma la imagen del Qlabel para usarla en el algoritmo
         if not filePath:
             self.textoDiagnostico.setPlainText("Por favor, seleccione un archivo antes de ejecutar el algoritmo.")
             return
@@ -270,17 +330,22 @@ class Ui_tcPIB(object):
             plt.close(fig)
             pixmap_segmented = QtGui.QPixmap('output_image.png')
             self.imSegmentada.setPixmap(pixmap_segmented.scaled(self.imSegmentada.size(), QtCore.Qt.KeepAspectRatio))
-            # Mostrar la imagen del nódulo segmentado (asumiendo que se guarda en 'nodule_image.png')
-            plt.imshow(largest_lung_borders, cmap='gray')
-            plt.axis('off')
-            plt.tight_layout()
-            plt.savefig('nodule_image.png', bbox_inches='tight', pad_inches=0)
-            plt.close()
-            pixmap_nodule = QtGui.QPixmap('nodule_image.png')
-            self.imNodulo.setPixmap(pixmap_nodule.scaled(self.imNodulo.size(), QtCore.Qt.KeepAspectRatio))
-            self.textoDiagnostico.setPlainText("Algoritmo ejecutado correctamente.")
+            # Llamar a la función convolucion_nodulo con el argumento masks_path
+            masks_path = 'C:\\Users\\Beatriz\\Desktop\\UPIBI\\ITBA_PIB\\interfaz\\proyecto_PIB\\xrays segmentados\\todo\\mascaras'
+            self.convolucion_nodulo(masks_path)
+            # Mostrar la imagen del nódulo segmentado (asumiendo que se guarda en 'nodule_image.png') <<Cambiar
+            #plt.imshow(largest_lung_borders, cmap='gray')
+            #plt.axis('off')
+            #plt.tight_layout()
+            #plt.savefig('nodule_image.png', bbox_inches='tight', pad_inches=0)
+            #plt.close()
+            #pixmap_nodule = QtGui.QPixmap('nodule_image.png')
+            #self.imNodulo.setPixmap(pixmap_nodule.scaled(self.imNodulo.size(), QtCore.Qt.KeepAspectRatio))
+            #self.textoDiagnostico.setPlainText("Algoritmo ejecutado correctamente.")
         except Exception as e:
             self.textoDiagnostico.setPlainText(f"Error al ejecutar el algoritmo: {str(e)}")
+
+    #Ejecución del ML (modificar)        
     def ejecutar_diagnostico(self):
         filePath = self.muestraArchivo.text()
         if not filePath:
