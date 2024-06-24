@@ -18,6 +18,8 @@ from PyQt5.QtGui import QImage, QPixmap
 from sklearn.preprocessing import StandardScaler
 from MachineLearning import extract_features
 from Evaluar_imagen import preprocess_image, predict_probabilities,cargar_modelos
+from PyQt5.QtGui import QImage
+from PyQt5.QtWidgets import QFileDialog, QMessageBox
 
 class Ui_tcPIB(object):
     def __init__(self):
@@ -43,7 +45,7 @@ class Ui_tcPIB(object):
         font.setStyleStrategy(QtGui.QFont.PreferDefault)
         self.Titulo.setFont(font)
         self.Titulo.setToolTipDuration(0)
-        self.Titulo.setStyleSheet("font: 28pt \"Stylus BT\";")
+        self.Titulo.setStyleSheet("font: 18pt \"Stylus BT\";")
         self.Titulo.setLocale(QtCore.QLocale(QtCore.QLocale.Spanish, QtCore.QLocale.Argentina))
         self.Titulo.setFrameShape(QtWidgets.QFrame.Box)
         self.Titulo.setLineWidth(0)
@@ -56,7 +58,7 @@ class Ui_tcPIB(object):
         self.instrucciones.setObjectName("instrucciones")
         self.instrucciones.setReadOnly(True)
         self.seleccionArchivo = QtWidgets.QPushButton(self.centralwidget)
-        self.seleccionArchivo.setGeometry(QtCore.QRect(24, 108, 169, 25))
+        self.seleccionArchivo.setGeometry(QtCore.QRect(24, 108, 188, 25))
         self.seleccionArchivo.setStyleSheet("background-color:rgb(193, 238, 255);\n"
                                             "font: 10pt \"SuperFrench\";")
         self.seleccionArchivo.setObjectName("seleccionArchivo")
@@ -177,26 +179,26 @@ class Ui_tcPIB(object):
         self.Titulo.setHtml(_translate("tcPIB", "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0//EN\" \"http://www.w3.org/TR/REC-html40/strict.dtd\">\n"
         "<html><head><meta name=\"qrichtext\" content=\"1\" /><style type=\"text/css\">\n"
         "p, li { white-space: pre-wrap; }\n"
-        "</style></head><body style=\" font-family:\'Stylus BT\'; font-size:28pt; font-weight:400; font-style:normal;\">\n"
+        "</style></head><body style=\" font-family:\'Stylus BT\'; font-size:20pt; font-weight:400; font-style:normal;\">\n"
         "<p style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-weight:600;\">Clasificador tumoral de cáncer de pulmón</span></p></body></html>"))
         self.instrucciones.setHtml(_translate("tcPIB", "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0//EN\" \"http://www.w3.org/TR/REC-html40/strict.dtd\">\n"
         "<html><head><meta name=\"qrichtext\" content=\"1\" /><style type=\"text/css\">\n"
         "p, li { white-space: pre-wrap; }\n"
-        "</style></head><body style=\" font-family:\'MS Shell Dlg 2\'; font-size:7.8pt; font-weight:400; font-style:normal;\">\n"
+        "</style></head><body style=\" font-family:\'MS Shell Dlg 2\'; font-size:5pt; font-weight:400; font-style:normal;\">\n"
         "<p style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-family:\'Stylus BT\'; font-size:12pt;\">Suba aqui la imagen correspondiente a la radiografía de toráx</span></p></body></html>"))
         self.seleccionArchivo.setText(_translate("tcPIB", "Seleccionar archivo"))
         self.muestraArchivo.setText(_translate("tcPIB", "Archivo seleccionado:"))
         self.ejecucionAlgortimo.setText(_translate("tcPIB", "Ejecutar algoritmo"))
-        self.ejecucionDiagnostico.setText(_translate("tcPIB", "Ejecutar diagnostico"))
+        self.ejecucionDiagnostico.setText(_translate("tcPIB", "Diagnosticar"))
         self.textoDiagnostico.setHtml(_translate("tcPIB", "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0//EN\" \"http://www.w3.org/TR/REC-html40/strict.dtd\">\n"
         "<html><head><meta name=\"qrichtext\" content=\"1\" /><style type=\"text/css\">\n"
         "p, li { white-space: pre-wrap; }\n"
-        "</style></head><body style=\" font-family:\'MS Shell Dlg 2\'; font-size:7.8pt; font-weight:400; font-style:normal;\">\n"
+        "</style></head><body style=\" font-family:\'MS Shell Dlg 2\'; font-size:5pt; font-weight:400; font-style:normal;\">\n"
         "<p style=\"-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><br /></p></body></html>"))
         self.cuadroDiagnostico.setHtml(_translate("tcPIB", "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0//EN\" \"http://www.w3.org/TR/REC-html40/strict.dtd\">\n"
         "<html><head><meta name=\"qrichtext\" content=\"1\" /><style type=\"text/css\">\n"
         "p, li { white-space: pre-wrap; }\n"
-        "</style></head><body style=\" font-family:\'MS Shell Dlg 2\'; font-size:7.8pt; font-weight:400; font-style:normal;\">\n"
+        "</style></head><body style=\" font-family:\'MS Shell Dlg 2\'; font-size:5pt; font-weight:400; font-style:normal;\">\n"
         "<p style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-family:\'Stylus BT\'; font-size:12pt;\">Diagnostico:</span></p></body></html>"))
         self.menuArchivo.setTitle(_translate("tcPIB", "Archivo"))
         self.menuGuardar_como.setTitle(_translate("tcPIB", "Guardar"))
@@ -236,12 +238,12 @@ class Ui_tcPIB(object):
             if len(knn_prob) < 2:
                 raise ValueError("KNN probabilities do not have enough elements")
 
-            benign_prob_svm = svm_prob[0]
-            malignant_prob_svm = svm_prob[1]
-            benign_prob_rf = rf_prob[0]
-            malignant_prob_rf = rf_prob[1]
-            benign_prob_knn = knn_prob[0]
-            malignant_prob_knn = knn_prob[1]
+            benign_prob_svm = svm_prob[0]*100
+            malignant_prob_svm = svm_prob[1]*100
+            benign_prob_rf = rf_prob[0]*100
+            malignant_prob_rf = rf_prob[1]*100
+            benign_prob_knn = knn_prob[0]*100
+            malignant_prob_knn = knn_prob[1]*100
 
             html_text = f"""
             <html>
@@ -414,15 +416,36 @@ class Ui_tcPIB(object):
             self.textoDiagnostico.setPlainText(f"Error al segmentar la imagen: {str(e)}")
 
 
-    # Guardar como PNG
+
     def savePNG(self):
-        try:
-            exporter = ImageExporter(self.imNodulo)
-            exporter.parameters()['width'] = 512  # width to export to
-            exporter.export('nodulo_segmentado.png')
-            self.textoDiagnostico.setPlainText("Imagen guardada como PNG")
-        except Exception as e:
-            self.textoDiagnostico.setPlainText(f"Error al guardar la imagen como PNG: {str(e)}")
+        if hasattr(self, 'imSegmentada'):
+            options = QFileDialog.Options()
+            options |= QFileDialog.DontUseNativeDialog
+            file_path, _ = QFileDialog.getSaveFileName(None, "Guardar Imagen como PNG", "", "PNG Files (*.png);;All Files (*)", options=options)
+            if file_path:
+                # Asegúrate de que 'imSegmentada' es un numpy array
+                array = self.imSegmentada
+                print(array.shape)
+                
+                if len(array.shape) == 2:  # Blanco y negro
+                    height, width = array.shape
+                    bytes_per_line = width
+                    q_image = QImage(array.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
+                elif len(array.shape) == 3 and array.shape[2] == 3:  # RGB
+                    height, width, channel = array.shape
+                    bytes_per_line = 3 * width
+                    q_image = QImage(array.data, width, height, bytes_per_line, QImage.Format_RGB888)
+                else:
+                    self.textoDiagnostico.setPlainText("Formato de imagen no soportado.")
+                    return
+                
+                q_image.save(file_path, "PNG")
+                self.textoDiagnostico.setPlainText("Imagen guardada correctamente.")
+            else:
+                self.textoDiagnostico.setPlainText("Guardado cancelado.")
+        else:
+            self.textoDiagnostico.setPlainText("No hay imagen para guardar.")
+
 
     # Guardar como TXT
     def saveTXT(self):
