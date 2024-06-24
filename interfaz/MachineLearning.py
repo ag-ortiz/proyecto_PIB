@@ -17,8 +17,8 @@ import pickle
 #image_path = 'C:\\Users\\Beatriz\\Desktop\\UPIBI\\ITBA_PIB\\interfaz\\proyecto_PIB\\xrays segmentados\\todo\\nodulos\\*.png'  # Actualiza la ruta a tus imágenes
 #labels_path = 'C:\\Users\\Beatriz\\Desktop\\UPIBI\\ITBA_PIB\\interfaz\\proyecto_PIB\\clinical_information\\CLNDAT_EN.txt'  # Actualiza la ruta a tu archivo de etiquetas
 
-image_path = 'C:\\Users\\Galle\\Documents\\ITBA\\PIB\\archivos_oficiales\\xrays segmentados\\todo\\nodulos\\*.png'
-labels_path = 'C:\\Users\\Galle\\Documents\\ITBA\\PIB\\archivos_oficiales\\clinical_information\\CLNDAT_EN.txt'
+image_path = 'C:\\Users\\krake\\Documents\\ITBA\\PIB\\archivos_oficiales\\xrays segmentados\\todo\\nodulos\\*.png'
+labels_path = 'C:\\Users\\krake\\Documents\\ITBA\\PIB\\archivos_oficiales\\clinical_information\\CLNDAT_EN.txt'
 
 # Cargar etiquetas
 labels_df = pd.read_csv(labels_path, delimiter='\t', header=None)
@@ -56,17 +56,14 @@ def extract_features(image):
     features.extend(polynomial.flatten())
     features.extend(laplacian.flatten())
 
-    print(f"Longitud de features entrenamiento: {len(features)}")
 
     return np.array(features)
 
-print(f"Total number of images: {len(image_files)}")
 
 # Cargar imágenes y extraer características
 for i, file in enumerate(image_files):
     if i < len(labels_df):
         image = cv2.imread(file, cv2.IMREAD_GRAYSCALE)
-        print(image.shape) #sacar despues
         if image is not None:
             fixed_size = (369, 369)  # Ajusta esto a la resolución usada durante el entrenamiento
             img_resized = cv2.resize(image, fixed_size, interpolation=cv2.INTER_AREA)
@@ -80,7 +77,6 @@ for i, file in enumerate(image_files):
 features = np.array(features)
 labels = np.array(labels)
 
-print(f"Number of features extracted: {len(features)}")
 
 if len(features) >= 50:
     # Seleccionar aleatoriamente 50 imágenes para entrenamiento
@@ -117,11 +113,11 @@ if len(features) >= 50:
          # Guardar el modelo entrenado en un diccionario
         trained_models[name] = model
         # Guardar el scaler también si lo necesitas para escalar nuevas entradas en la interfaz
-        scaler_file = 'C:\\Users\\Galle\\Documents\\ITBA\\PIB\\scaler.joblib'  # Actualiza la ruta donde guardar el scaler
+        scaler_file = 'C:\\Users\\krake\\Documents\\ITBA\\PIB\\scaler.joblib'  # Actualiza la ruta donde guardar el scaler
         joblib.dump(scaler, scaler_file)
         # Guardar los modelos entrenados usando joblib o pickle
         for name, model in trained_models.items():
-            model_file = f'C:\\Users\\Galle\\Documents\\ITBA\\PIB\\{name}_model.joblib'  # Actualiza la ruta donde guardar cada modelo
+            model_file = f'C:\\Users\\krake\\Documents\\ITBA\\PIB\\{name}_model.joblib'  # Actualiza la ruta donde guardar cada modelo
             joblib.dump(model, model_file)
         print("Modelos y scaler guardados correctamente.")
 else:

@@ -11,7 +11,7 @@ from PyQt5.QtGui import QImage, QPixmap
 
 def cambiar_directorio():
     try:
-        os.chdir('C:\\Users\\Galle\\Documents\\ITBA\\PIB')
+        os.chdir('C:\\Users\\krake\\Documents\\ITBA\\PIB')
         new_dir = os.getcwd()
         print("Nuevo directorio:", new_dir)
     except FileNotFoundError:
@@ -66,7 +66,6 @@ def extract_features(image):
         features.extend(polynomial.flatten())
         features.extend(laplacian.flatten())
 
-        print(f"longitud de features testeo: {len(features)}")
 
         return np.array(features)
     except Exception as e:
@@ -95,15 +94,12 @@ def preprocess_image(image, scaler):
 
     img_resized=image
 
-    print(f"imagen resized {img_resized.shape}")
 
 
     features = extract_features(img_resized)
-    print("bien extraido")
     features = np.reshape(features, (1, -1))
 
     features_scaled = scaler.transform(features)
-    print(f"features shape: {features.shape}")
 
     return features_scaled
 

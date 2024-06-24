@@ -173,16 +173,35 @@ class Ui_tcPIB(object):
     #Texto de botones y titulos
     def retranslateUi(self, tcPIB):
         _translate = QtCore.QCoreApplication.translate
-        tcPIB.setWindowTitle(_translate("tcPIB", "Tomografía Computada de Perfusión para Imágenes Biomédicas"))
-        self.Titulo.setHtml(_translate("tcPIB", "<p align=\"center\"><span style=\" font-size:36pt;\">Tomografía Computada de Perfusión para Imágenes Biomédicas</span></p>"))
-        self.instrucciones.setHtml(_translate("tcPIB", "<p align=\"center\"><span style=\" font-size:14pt;\">Seleccione una imagen para analizar y ejecute el algoritmo.</span></p>"))
+        tcPIB.setWindowTitle(_translate("tcPIB", "MainWindow"))
+        self.Titulo.setHtml(_translate("tcPIB", "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0//EN\" \"http://www.w3.org/TR/REC-html40/strict.dtd\">\n"
+        "<html><head><meta name=\"qrichtext\" content=\"1\" /><style type=\"text/css\">\n"
+        "p, li { white-space: pre-wrap; }\n"
+        "</style></head><body style=\" font-family:\'Stylus BT\'; font-size:28pt; font-weight:400; font-style:normal;\">\n"
+        "<p style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-weight:600;\">Clasificador tumoral de cáncer de pulmón</span></p></body></html>"))
+        self.instrucciones.setHtml(_translate("tcPIB", "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0//EN\" \"http://www.w3.org/TR/REC-html40/strict.dtd\">\n"
+        "<html><head><meta name=\"qrichtext\" content=\"1\" /><style type=\"text/css\">\n"
+        "p, li { white-space: pre-wrap; }\n"
+        "</style></head><body style=\" font-family:\'MS Shell Dlg 2\'; font-size:7.8pt; font-weight:400; font-style:normal;\">\n"
+        "<p style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-family:\'Stylus BT\'; font-size:12pt;\">Suba aqui la imagen correspondiente a la radiografía de toráx</span></p></body></html>"))
         self.seleccionArchivo.setText(_translate("tcPIB", "Seleccionar archivo"))
+        self.muestraArchivo.setText(_translate("tcPIB", "Archivo seleccionado:"))
         self.ejecucionAlgortimo.setText(_translate("tcPIB", "Ejecutar algoritmo"))
-        self.ejecucionDiagnostico.setText(_translate("tcPIB", "Ejecutar diagnóstico"))
+        self.ejecucionDiagnostico.setText(_translate("tcPIB", "Ejecutar diagnostico"))
+        self.textoDiagnostico.setHtml(_translate("tcPIB", "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0//EN\" \"http://www.w3.org/TR/REC-html40/strict.dtd\">\n"
+        "<html><head><meta name=\"qrichtext\" content=\"1\" /><style type=\"text/css\">\n"
+        "p, li { white-space: pre-wrap; }\n"
+        "</style></head><body style=\" font-family:\'MS Shell Dlg 2\'; font-size:7.8pt; font-weight:400; font-style:normal;\">\n"
+        "<p style=\"-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><br /></p></body></html>"))
+        self.cuadroDiagnostico.setHtml(_translate("tcPIB", "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0//EN\" \"http://www.w3.org/TR/REC-html40/strict.dtd\">\n"
+        "<html><head><meta name=\"qrichtext\" content=\"1\" /><style type=\"text/css\">\n"
+        "p, li { white-space: pre-wrap; }\n"
+        "</style></head><body style=\" font-family:\'MS Shell Dlg 2\'; font-size:7.8pt; font-weight:400; font-style:normal;\">\n"
+        "<p style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-family:\'Stylus BT\'; font-size:12pt;\">Diagnostico:</span></p></body></html>"))
         self.menuArchivo.setTitle(_translate("tcPIB", "Archivo"))
-        self.menuGuardar_como.setTitle(_translate("tcPIB", "Guardar como"))
+        self.menuGuardar_como.setTitle(_translate("tcPIB", "Guardar"))
         self.actionPNG.setText(_translate("tcPIB", "PNG"))
-        self.action_txt.setText(_translate("tcPIB", ".txt"))
+        self.action_txt.setText(_translate("tcPIB", "DIAGNOSTICO"))
         self.actionAbrir.setText(_translate("tcPIB", "Abrir"))
     
     #Seleccionar y cargar imagen
@@ -301,7 +320,7 @@ class Ui_tcPIB(object):
             self.imSegmentada.setPixmap(pixmap_segmented.scaled(self.imSegmentada.size(), QtCore.Qt.KeepAspectRatio))
 
             # Crear una máscara binaria para el nódulo segmentado
-            masks_path = 'C:\\Users\\Galle\\Documents\\ITBA\\PIB\\archivos_oficiales\\xrays segmentados\\todo\\mascaras'
+            masks_path = 'C:\\Users\\krake\\Documents\\ITBA\\PIB\\archivos_oficiales\\xrays segmentados\\todo\\mascaras'
 
             # Procesar el nódulo segmentado
             nodulo_segmentado = self.convolucion_nodulo(self.segmented_image,masks_path)
