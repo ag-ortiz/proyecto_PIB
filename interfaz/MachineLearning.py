@@ -11,12 +11,9 @@ from sklearn.metrics import classification_report, accuracy_score
 from sklearn.preprocessing import StandardScaler
 import joblib  # Para guardar y cargar modelos
 import pickle
-
+from imblearn.over_sampling import SMOTE
 
 # Ruta de las imágenes y etiquetas
-#image_path = 'C:\\Users\\Beatriz\\Desktop\\UPIBI\\ITBA_PIB\\interfaz\\proyecto_PIB\\xrays segmentados\\todo\\nodulos\\*.png'  # Actualiza la ruta a tus imágenes
-#labels_path = 'C:\\Users\\Beatriz\\Desktop\\UPIBI\\ITBA_PIB\\interfaz\\proyecto_PIB\\clinical_information\\CLNDAT_EN.txt'  # Actualiza la ruta a tu archivo de etiquetas
-
 image_path = 'C:\\Users\\krake\\Documents\\ITBA\\PIB\\archivos_oficiales\\xrays segmentados\\todo\\nodulos\\*.png'
 labels_path = 'C:\\Users\\krake\\Documents\\ITBA\\PIB\\archivos_oficiales\\clinical_information\\CLNDAT_EN.txt'
 
@@ -56,9 +53,7 @@ def extract_features(image):
     features.extend(polynomial.flatten())
     features.extend(laplacian.flatten())
 
-
     return np.array(features)
-
 
 # Cargar imágenes y extraer características
 for i, file in enumerate(image_files):
@@ -77,7 +72,7 @@ for i, file in enumerate(image_files):
 features = np.array(features)
 labels = np.array(labels)
 
-
+# Verificar si hay suficientes imágenes
 if len(features) >= 50:
     # Seleccionar aleatoriamente 50 imágenes para entrenamiento
     random_indices = np.random.choice(len(features), size=50, replace=False)
@@ -89,6 +84,10 @@ if len(features) >= 50:
     test_features = features[test_indices]
     test_labels = labels[test_indices]
 
+    # Aplicar SMOTE para balancear las clases en el conjunto de entrenamiento
+    smote = SMOTE()
+    train_features, train_labels = smote.fit_resample(train_features, train_labels)
+
     # Escalar características
     scaler = StandardScaler()
     train_features = scaler.fit_transform(train_features)
@@ -96,8 +95,8 @@ if len(features) >= 50:
 
     # Modelos
     models = {
-        'SVM': SVC(probability=True),
-        'RandomForest': RandomForestClassifier(),
+        'SVM': SVC(probability=True, class_weight='balanced'),
+        'RandomForest': RandomForestClassifier(class_weight='balanced'),
         'KNN': KNeighborsClassifier()
     }
     
@@ -108,17 +107,20 @@ if len(features) >= 50:
         model.fit(train_features, train_labels)
         y_pred = model.predict(test_features)
         print(f'--- {name} ---')
-        print(classification_report(test_labels, y_pred))
+        print(classification_report(test_labels, y_pred, zero_division=0))
         print(f'Accuracy: {accuracy_score(test_labels, y_pred)}')
-         # Guardar el modelo entrenado en un diccionario
+        # Guardar el modelo entrenado en un diccionario
         trained_models[name] = model
-        # Guardar el scaler también si lo necesitas para escalar nuevas entradas en la interfaz
-        scaler_file = 'C:\\Users\\krake\\Documents\\ITBA\\PIB\\scaler.joblib'  # Actualiza la ruta donde guardar el scaler
-        joblib.dump(scaler, scaler_file)
-        # Guardar los modelos entrenados usando joblib o pickle
-        for name, model in trained_models.items():
-            model_file = f'C:\\Users\\krake\\Documents\\ITBA\\PIB\\{name}_model.joblib'  # Actualiza la ruta donde guardar cada modelo
-            joblib.dump(model, model_file)
-        print("Modelos y scaler guardados correctamente.")
+
+    # Guardar el scaler también si lo necesitas para escalar nuevas entradas en la interfaz
+    scaler_file = 'C:\\Users\\krake\\Documents\\ITBA\\PIB\\scaler.joblib'  # Actualiza la ruta donde guardar el scaler
+    joblib.dump(scaler, scaler_file)
+    
+    # Guardar los modelos entrenados usando joblib o pickle
+    for name, model in trained_models.items():
+        model_file = f'C:\\Users\\krake\\Documents\\ITBA\\PIB\\{name}_model.joblib'  # Actualiza la ruta donde guardar cada modelo
+        joblib.dump(model, model_file)
+    print("Modelos y scaler guardados correctamente.")
 else:
     print("No hay suficientes imágenes para seleccionar aleatoriamente 50 para el entrenamiento.")
+
